@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frise Chronologique – Knight Lab Style</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --dark: #1a1a1a;
+      --darker: #111;
+      --accent: #d4373e;
+      --accent2: #e8622a;
+      --text-light: #f0f0f0;
+      --text-muted: #aaa;
+      --tl-h: 265px;
+      --nav-btn: 60px;
+    }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: var(--dark);
+      color: var(--text-light);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Editor bar ── */
+    #editor-bar {
+      background: #0d0d0d;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: stretch;
+      flex-shrink: 0;
+    }
+
+    #editor-bar button {
+      background: none;
+      color: #888;
+      border: none;
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      letter-spacing: 0.5px;
+      border-right: 1px solid #333;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    #editor-bar button:hover, #editor-bar button.active {
+      color: white;
+      background: #222;
+    }
+
+    /* ── Full editor section (replaces small editor-wrap) ── */
+    #editor-section {
+      display: none;
+      flex-shrink: 0;
+      height: 380px;
+      border-top: 2px solid #2a2a2a;
+    }
+
+    #editor-section.open {
+      display: flex;
+    }
+
+    /* Left: textarea pane */
+    #editor-pane {
+      width: 340px;
+      min-width: 260px;
+      flex-shrink: 0;
+      background: #111;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #222;
+    }
+
+    .editor-hint {
+      padding: 8px 12px;
+      background: #0d0d0d;
+      border-bottom: 1px solid #1e1e1e;
+      font-size: 0.72rem;
+      color: #555;
+      font-family: monospace;
+      line-height: 1.7;
+      flex-shrink: 0;
+    }
+
+    .editor-hint code { color: #888; }
+
+    #editor {
+      flex: 1;
+      background: #111;
+      color: #ccc;
+      border: none;
+      padding: 12px 14px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      resize: none;
+      outline: none;
+    }
+
+    /* Right: card timeline preview */
+    #card-preview {
+      flex: 1;
+      overflow-y: auto;
+      background: #f0f2f5;
+      padding: 20px 24px;
+    }
+
+    #card-preview::-webkit-scrollbar { width: 6px; }
+    #card-preview::-webkit-scrollbar-track { background: #e0e0e0; }
+    #card-preview::-webkit-scrollbar-thumb { background: #bbb; border-radius: 3px; }
+
+    .cp-title {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      text-align: center;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      border-bottom: 3px solid #4361ee;
+      display: inline-block;
+    }
+
+    .cp-title-wrap { text-align: center; margin-bottom: 10px; }
+
+    .cp-timeline {
+      position: relative;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .cp-timeline::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 0; bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, #4361ee, #3a0ca3);
+    }
+
+    .cp-event {
+      position: relative;
+      width: 44%;
+      background: white;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .cp-event:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.13); }
+
+    .cp-event.cp-active {
+      outline: 2px solid #4361ee;
+      box-shadow: 0 0 0 4px rgba(67,97,238,0.15);
+    }
+
+    .cp-event.cp-left  { margin-left: 0; margin-right: auto; }
+    .cp-event.cp-right { margin-left: auto; margin-right: 0; }
+
+    .cp-event::before {
+      content: '';
+      position: absolute;
+      top: 16px;
+      width: 10px; height: 10px;
+      background: #4361ee;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px #4361ee;
+    }
+
+    .cp-event.cp-left::before  { right: -29px; }
+    .cp-event.cp-right::before { left: -29px; }
+
+    .cp-event::after {
+      content: '';
+      position: absolute;
+      top: 19px;
+      width: 22px; height: 2px;
+      background: #4361ee;
+    }
+
+    .cp-event.cp-left::after  { right: -22px; }
+    .cp-event.cp-right::after { left: -22px; }
+
+    .cp-date {
+      display: inline-block;
+      background: linear-gradient(135deg, #4361ee, #3a0ca3);
+      color: white;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .cp-event-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    .cp-event-text {
+      font-size: 0.75rem;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .cp-event img {
+      width: 100%;
+      border-radius: 5px;
+      margin-top: 8px;
+      max-height: 80px;
+      object-fit: cover;
+    }
+
+    /* ── Slide area ── */
+    #slide-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #1a1a1a;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: stretch;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .slide.active { opacity: 1; pointer-events: all; }
+
+    .slide.title-slide {
+      background: var(--darker);
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 60px;
+    }
+
+    .slide.title-slide .title-media {
+      max-width: 300px;
+      max-height: 220px;
+      object-fit: contain;
+      margin-bottom: 32px;
+      border-radius: 4px;
+    }
+
+    .slide.title-slide .title-label {
+      font-family: sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .slide.title-slide h1 {
+      font-size: 2.8rem;
+      font-weight: 400;
+      color: white;
+      line-height: 1.2;
+      max-width: 700px;
+    }
+
+    .slide.title-slide .subtitle {
+      margin-top: 14px;
+      font-size: 1rem;
+      color: var(--text-muted);
+      font-family: sans-serif;
+      font-style: italic;
+    }
+
+    .slide.event-slide { flex-direction: row; }
+
+    .slide-media {
+      flex: 1.2;
+      background: #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .slide-media img { width: 100%; height: 100%; object-fit: cover; }
+    .slide-media iframe { width: 100%; height: 100%; border: none; }
+    .slide-media .no-media { color: #333; font-size: 4rem; }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px 56px;
+      background: #1e1e1e;
+      overflow-y: auto;
+    }
+
+    .slide-date {
+      font-family: sans-serif;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: white;
+      background: var(--accent);
+      display: inline-block;
+      padding: 4px 14px;
+      margin-bottom: 20px;
+    }
+
+    .slide-title {
+      font-size: 2rem;
+      font-weight: 400;
+      line-height: 1.25;
+      color: white;
+      margin-bottom: 20px;
+    }
+
+    .slide-text {
+      font-size: 1rem;
+      line-height: 1.75;
+      color: #bbb;
+      font-family: sans-serif;
+    }
+
+    .nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      width: var(--nav-btn);
+      height: var(--nav-btn);
+      font-size: 1.5rem;
+      cursor: pointer;
+      z-index: 10;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-btn:hover { background: rgba(212,55,62,0.8); }
+    .nav-btn:disabled { opacity: 0.2; cursor: default; }
+    #btn-prev { left: 0; }
+    #btn-next { right: 0; }
+
+    #slide-counter {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-family: sans-serif;
+      font-size: 0.75rem;
+      color: #555;
+      z-index: 10;
+    }
+
+    /* ── Timeline bar ── */
+    #timeline-bar {
+      height: var(--tl-h);
+      background: var(--darker);
+      border-top: 2px solid #2a2a2a;
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Scrollable canvas inside bar */
+    #tl-canvas {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      will-change: transform;
+    }
+
+    #tl-canvas svg {
+      display: block;
+      height: 100%;
+    }
+
+    /* Fixed playhead at center */
+    #playhead {
+      position: absolute;
+      top: 0; bottom: 0;
+      left: 50%;
+      width: 2px;
+      background: var(--accent);
+      z-index: 6;
+      pointer-events: none;
+      opacity: 0.65;
+    }
+
+    #playhead::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-top: 10px solid var(--accent);
+    }
+
+    /* Fade edges */
+    #tl-fade-left, #tl-fade-right {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 60px;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    #tl-fade-left {
+      left: 0;
+      background: linear-gradient(to right, var(--darker), transparent);
+    }
+
+    #tl-fade-right {
+      right: 0;
+      background: linear-gradient(to left, var(--darker), transparent);
+    }
+
+    /* Zoom controls */
+    #tl-controls {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      display: flex;
+      gap: 4px;
+      z-index: 10;
+    }
+
+    #tl-controls button {
+      width: 26px; height: 26px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: #aaa;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    #tl-controls button:hover { background: #444; color: white; }
+
+    /* Zoom level badge */
+    #tl-zoom-label {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      font-family: sans-serif;
+      font-size: 0.7rem;
+      color: #444;
+      z-index: 10;
+      letter-spacing: 0.5px;
+    }
+
+    /* Tooltip */
+    #tl-tooltip {
+      position: fixed;
+      background: rgba(18,18,18,0.97);
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: none;
+      z-index: 1000;
+      pointer-events: none;
+      max-width: 210px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+    }
+
+    #tl-tooltip img {
+      width: 100%;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 5px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    #tl-tip-date {
+      font-family: sans-serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    #tl-tip-title {
+      font-family: sans-serif;
+      font-size: 0.85rem;
+      color: #ddd;
+      line-height: 1.3;
+    }
+
+    /* Print */
+    @media print {
+      .editor-panel, #editor-bar, #timeline-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Editor bar -->
+<div id="editor-bar">
+  <button id="btn-edit" onclick="toggleEditor()">✎ Éditer</button>
+  <button onclick="window.print()" style="margin-left:auto;">Imprimer</button>
+</div>
+
+<!-- Full editor section: textarea + card preview -->
+<div id="editor-section">
+  <div id="editor-pane">
+    <div class="editor-hint">
+      <code># Titre</code> → titre de la frise<br>
+      <code>## Date - Événement</code> → événement<br>
+      Texte libre → description<br>
+      <code>![](url)</code> → image / YouTube
+    </div>
+    <textarea id="editor" spellcheck="false"></textarea>
+  </div>
+  <div id="card-preview"></div>
+</div>
+
+<!-- Slides -->
+<div id="slide-area">
+  <button class="nav-btn" id="btn-prev" onclick="navigate(-1)">&#8249;</button>
+  <button class="nav-btn" id="btn-next" onclick="navigate(1)">&#8250;</button>
+  <div id="slide-counter"></div>
+  <div id="slides"></div>
+</div>
+
+<!-- Timeline bar -->
+<div id="timeline-bar">
+  <div id="tl-canvas"><svg id="tl-svg"></svg></div>
+  <div id="playhead"></div>
+  <div id="tl-fade-left"></div>
+  <div id="tl-fade-right"></div>
+  <div id="tl-controls">
+    <button onclick="zoom(1.4)" title="Zoom avant">+</button>
+    <button onclick="zoom(1/1.4)" title="Zoom arrière">−</button>
+    <button onclick="resetZoom()" title="Réinitialiser">⊙</button>
+  </div>
+  <div id="tl-zoom-label">scroll to zoom · drag to pan</div>
+</div>
+
+<!-- Tooltip -->
+<div id="tl-tooltip">
+  <img id="tl-tip-img" src="" alt="">
+  <div id="tl-tip-date"></div>
+  <div id="tl-tip-title"></div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// Default content
+// ─────────────────────────────────────────────────────────────
+const DEFAULT = `# La Seconde Guerre mondiale
+
+## 1939-1945 - La Seconde Guerre mondiale
+Le conflit le plus meurtrier de l'Histoire oppose les Alliés aux puissances de l'Axe.
+
+## 1940-1944 - L'Occupation de la France
+La France est sous occupation nazie. Le régime de Vichy collabore avec l'ennemi.
+
+## 1941-1945 - Le front de l'Est
+L'opération Barbarossa engage l'URSS — le front le plus vaste et le plus meurtrier.
+
+## 1er septembre 1939 - Invasion de la Pologne
+L'Allemagne nazie envahit la Pologne. En réponse, la France et le Royaume-Uni déclarent la guerre à l'Allemagne.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Battle_of_Poland.png/330px-Battle_of_Poland.png)
+
+## 10 mai 1940 - L'offensive à l'Ouest
+L'Allemagne attaque la France, la Belgique et les Pays-Bas. La ligne Maginot est contournée.
+
+## 18 juin 1940 - L'Appel du 18 juin
+Le général de Gaulle lance depuis Londres un appel à la résistance sur la BBC. La France libre est née.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Charles_de_Gaulle_au_micro_de_la_BBC.jpg/330px-Charles_de_Gaulle_au_micro_de_la_BBC.jpg)
+
+## 22 juin 1940 - Armistice
+La France signe l'armistice avec l'Allemagne. Le régime de Vichy dirigé par Pétain collabore avec l'occupant.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Bundesarchiv_Bild_146-2004-0147%2C_Waffenstillstand_von_Compi%C3%A8gne%2C_Waggon.jpg/330px-Bundesarchiv_Bild_146-2004-0147%2C_Waffenstillstand_von_Compi%C3%A8gne%2C_Waggon.jpg)
+
+## 8 décembre 1941 - Les États-Unis entrent en guerre
+Après l'attaque japonaise sur Pearl Harbor, les États-Unis rejoignent les Alliés.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Attack_on_Pearl_Harbor_Japanese_planes_view.jpg/330px-Attack_on_Pearl_Harbor_Japanese_planes_view.jpg)
+
+## 2 février 1943 - Stalingrad
+La capitulation allemande à Stalingrad marque un tournant décisif sur le front de l'Est.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Battle_of_Stalingrad_-_Collage.png/330px-Battle_of_Stalingrad_-_Collage.png)
+
+## 6 juin 1944 - Débarquement en Normandie
+Les Alliés débarquent en Normandie. C'est le Jour J, début de la libération de l'Europe occidentale.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Into_the_Jaws_of_Death_23-0455M_edit.jpg/640px-Into_the_Jaws_of_Death_23-0455M_edit.jpg)
+
+## 25 août 1944 - Libération de Paris
+Paris est libérée. Le général de Gaulle défile sur les Champs-Élysées.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Crowds_of_French_patriots_line_the_Champs_Elysees-edit2.jpg/330px-Crowds_of_French_patriots_line_the_Champs_Elysees-edit2.jpg)
+
+## 8 mai 1945 - Capitulation de l'Allemagne
+L'Allemagne nazie capitule sans conditions. C'est la fin de la guerre en Europe.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Winston_Churchill_waves_to_crowds_in_Whitehall_in_London_as_they_celebrate_VE_Day%2C_8_May_1945._H41849.jpg/330px-Winston_Churchill_waves_to_crowds_in_Whitehall_in_London_as_they_celebrate_VE_Day%2C_8_May_1945._H41849.jpg)
+
+## 2 septembre 1945 - Fin de la guerre
+Le Japon capitule après les bombes atomiques sur Hiroshima et Nagasaki. La Seconde Guerre mondiale est terminée.
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/Atomic_bombing_of_Japan.jpg/330px-Atomic_bombing_of_Japan.jpg)`;
+
+// ─────────────────────────────────────────────────────────────
+// Parser
+// ─────────────────────────────────────────────────────────────
+function parseMarkdown(text) {
+  const lines = text.split('\n');
+  let title = '', titleImg = '', titleSub = '';
+  const events = [];
+  let cur = null;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+
+    if (/^# (?!#)/.test(line)) { title = line.replace(/^# /, ''); continue; }
+
+    if (/^## /.test(line)) {
+      if (cur) events.push(cur);
+      const content = line.replace(/^## /, '');
+      // Period: YYYY-YYYY - Title (space required before separator dash)
+      const pm = content.match(/^(\d{4})\s*[-–—]\s*(\d{4})\s+[-–—]\s*(.+)$/);
+      if (pm) {
+        cur = { date: `${pm[1]}–${pm[2]}`, title: pm[3].trim(), text: [], media: null,
+                startYear: parseInt(pm[1]), endYear: parseInt(pm[2]), isPeriod: true };
+      } else {
+        const m = content.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+        cur = m ? { date: m[1].trim(), title: m[2].trim(), text: [], media: null, isPeriod: false }
+                : { date: '', title: content, text: [], media: null, isPeriod: false };
+      }
+      continue;
+    }
+
+    const imgM = line.match(/!\[.*?\]\((.+?)\)/);
+    if (imgM) { (cur ? cur : { media: null }).media = imgM[1]; if (cur) cur.media = imgM[1]; else titleImg = imgM[1]; continue; }
+
+    if (line) { if (cur) cur.text.push(line); else if (title) titleSub = line; }
+  }
+  if (cur) events.push(cur);
+  return { title, titleImg, titleSub, events };
+}
+
+function parseYear(dateStr) {
+  const m = (dateStr || '').match(/(\d{4})/);
+  return m ? parseInt(m[1]) : null;
+}
+
+function youtubeId(url) {
+  const m = (url||'').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function makeMediaEl(url) {
+  if (!url) return `<div class="no-media">&#9632;</div>`;
+  const yt = youtubeId(url);
+  if (yt) return `<iframe src="https://www.youtube.com/embed/${yt}" allowfullscreen></iframe>`;
+  return `<img src="${esc(url)}" alt="" loading="lazy" onerror="this.style.opacity=0.15">`;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─────────────────────────────────────────────────────────────
+// Slide state
+// ─────────────────────────────────────────────────────────────
+let current = 0;
+let total = 0;
+let lastData = null;
+
+function buildSlides(data) {
+  const container = document.getElementById('slides');
+  let html = '';
+
+  if (data.title) {
+    html += `<div class="slide title-slide" data-index="0">
+      ${data.titleImg ? `<img class="title-media" src="${esc(data.titleImg)}" alt="">` : ''}
+      <div class="title-label">Timeline</div>
+      <h1>${esc(data.title)}</h1>
+      ${data.titleSub ? `<p class="subtitle">${esc(data.titleSub)}</p>` : ''}
+    </div>`;
+  }
+
+  data.events.forEach((ev, i) => {
+    const idx = data.title ? i + 1 : i;
+    html += `<div class="slide event-slide" data-index="${idx}">
+      <div class="slide-media">${makeMediaEl(ev.media)}</div>
+      <div class="slide-content">
+        ${ev.date ? `<div class="slide-date">${esc(ev.date)}</div>` : ''}
+        <div class="slide-title">${esc(ev.title)}</div>
+        ${ev.text.length ? `<div class="slide-text">${ev.text.map(t => esc(t)).join('<br>')}</div>` : ''}
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = html;
+  total = data.events.length + (data.title ? 1 : 0);
+}
+
+function showSlide(idx) {
+  current = Math.max(0, Math.min(idx, total - 1));
+  document.querySelectorAll('.slide').forEach(s =>
+    s.classList.toggle('active', parseInt(s.dataset.index) === current));
+  document.getElementById('btn-prev').disabled = current === 0;
+  document.getElementById('btn-next').disabled = current === total - 1;
+  document.getElementById('slide-counter').textContent = `${current + 1} / ${total}`;
+  centerTimelineOnCurrent(true);
+
+  // Sync card preview active state
+  if (document.getElementById('editor-section').classList.contains('open')) {
+    document.querySelectorAll('.cp-event').forEach((el, i) => {
+      const slideIdx = lastData.title ? i + 1 : i;
+      el.classList.toggle('cp-active', slideIdx === current);
+    });
+    const active = document.querySelector('.cp-active');
+    if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function navigate(dir) { showSlide(current + dir); }
+function goTo(idx) { showSlide(idx); }
+
+// Navigate to the next event within a cluster (cycles through on repeated clicks)
+function clusterGoTo(clIdx) {
+  const cl = window._tlClusters && window._tlClusters[clIdx];
+  if (!cl) return;
+  const after = cl.items.find(pt => pt.slideIdx > current);
+  goTo(after ? after.slideIdx : cl.items[0].slideIdx);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Timeline – state
+// ─────────────────────────────────────────────────────────────
+const ERA_COLORS = [
+  'rgba(90,120,200,0.09)', 'rgba(200,120,70,0.08)',
+  'rgba(80,180,120,0.09)', 'rgba(190,80,80,0.07)',
+  'rgba(160,90,200,0.09)', 'rgba(60,160,200,0.08)',
+];
+const PERIOD_COLORS = ['#4a9eff','#ff6b35','#2dd4bf','#fbbf24','#a78bfa','#f472b6'];
+
+const PAD       = 120;   // horizontal canvas padding
+const RULER_Y   = 94;    // y of the ruler axis line
+const DOT_Y     = 72;    // y of all point event dots (uniform height)
+const DOT_R     = 6;
+const DOT_R_A   = 9;
+const PERIOD_TOP_Y = 136; // y of first (top) period bar row
+const PERIOD_H  = 17;
+const PERIOD_GAP = 5;
+function periodRowY(row) { return PERIOD_TOP_Y + row * (PERIOD_H + PERIOD_GAP); }
+
+let tlZoom   = 1;        // current zoom multiplier
+let tlOffset = 0;        // pan: how many px the canvas is shifted left
+let tlYearMin, tlYearMax, tlRange;
+let tlEventYears = [];   // year for each event (index matches data.events)
+let tlAnimating  = false;
+
+// Drag state
+let dragActive = false, dragStartX = 0, dragOffsetStart = 0;
+// Touch state
+let touchStartX = 0, touchOffsetStart = 0;
+// Pinch state
+let pinchStartDist = 0, pinchStartZoom = 1;
+
+function getVW() {
+  const bar = document.getElementById('timeline-bar');
+  return Math.max(bar.clientWidth, bar.clientWidth * tlZoom);
+}
+
+function yearToX(year) {
+  const vW = getVW();
+  return PAD + ((year - tlYearMin) / tlRange) * (vW - PAD * 2);
+}
+
+function clampOffset(off) {
+  const bar = document.getElementById('timeline-bar');
+  const vW = getVW();
+  return Math.max(0, Math.min(off, vW - bar.clientWidth));
+}
+
+// ─────────────────────────────────────────────────────────────
+// Timeline – render
+// ─────────────────────────────────────────────────────────────
+function renderTimeline() {
+  const bar    = document.getElementById('timeline-bar');
+  const canvas = document.getElementById('tl-canvas');
+  const svg    = document.getElementById('tl-svg');
+  const W = bar.clientWidth;
+  const H = bar.clientHeight;
+  const vW = getVW();
+
+  canvas.style.width = vW + 'px';
+  canvas.style.transform = `translateX(${-tlOffset}px)`;
+  svg.setAttribute('width', vW);
+  svg.setAttribute('height', H);
+
+  if (!lastData || !lastData.events.length) { svg.innerHTML = ''; return; }
+
+  let s = '';
+
+  // ── Defs ──
+  s += `<defs>
+    <linearGradient id="axisGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="transparent"/>
+      <stop offset="4%" stop-color="#666"/>
+      <stop offset="96%" stop-color="#666"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="barShadow" x="-10%" y="-20%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.7)"/>
+    </filter>
+  </defs>`;
+
+  // ── Era color bands (century) ──
+  const centuryStart = Math.floor(tlYearMin / 100) * 100;
+  let eraIdx = 0;
+  for (let c = centuryStart; c <= tlYearMax + 100; c += 100) {
+    const x1 = Math.max(0, yearToX(c));
+    const x2 = Math.min(vW, yearToX(c + 100));
+    if (x2 > x1) {
+      s += `<rect x="${x1}" y="0" width="${x2-x1}" height="${H}" fill="${ERA_COLORS[eraIdx % ERA_COLORS.length]}"/>`;
+      s += `<text x="${x1+(x2-x1)/2}" y="${RULER_Y + 80}" text-anchor="middle"
+        fill="rgba(255,255,255,0.04)" font-size="52" font-family="sans-serif" font-weight="bold">${c}s</text>`;
+    }
+    eraIdx++;
+  }
+
+  // ── Ruler tick marks + year labels (below RULER_Y) ──
+  const tickInterval = tlRange > 500 ? 100 : tlRange > 200 ? 50 : tlRange > 80 ? 20 : tlRange > 30 ? 10 : 5;
+  const minorInterval = tickInterval >= 10 ? tickInterval / 5 : tickInterval;
+  const firstMinor = Math.ceil((tlYearMin + 1) / minorInterval) * minorInterval;
+  for (let y = firstMinor; y <= tlYearMax; y += minorInterval) {
+    const x = yearToX(y);
+    const isMajor = y % tickInterval === 0;
+    s += `<line x1="${x}" y1="${RULER_Y}" x2="${x}" y2="${RULER_Y + (isMajor ? 14 : 6)}"
+      stroke="${isMajor ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.10)'}"
+      stroke-width="${isMajor ? 1.5 : 1}"/>`;
+    if (isMajor) {
+      s += `<text x="${x}" y="${RULER_Y + 26}" text-anchor="middle"
+        fill="rgba(255,255,255,0.35)" font-size="11" font-family="sans-serif">${y}</text>`;
+    }
+  }
+
+  // ── Ruler axis line ──
+  s += `<line x1="0" y1="${RULER_Y}" x2="${vW}" y2="${RULER_Y}" stroke="url(#axisGrad)" stroke-width="2"/>`;
+
+  // ── Period bars (below ruler) ──
+  const periodEvents = lastData.events
+    .map((ev, i) => ({ ev, i, slideIdx: lastData.title ? i + 1 : i }))
+    .filter(p => p.ev.isPeriod && p.ev.startYear != null);
+
+  // Assign rows (greedy, sorted by startYear)
+  const sorted = [...periodEvents].sort((a, b) => a.ev.startYear - b.ev.startYear);
+  const rowEnds = [];
+  for (const p of sorted) {
+    let r = 0;
+    while (r < rowEnds.length && rowEnds[r] > p.ev.startYear) r++;
+    p.row = r;
+    if (r < rowEnds.length) rowEnds[r] = p.ev.endYear;
+    else rowEnds.push(p.ev.endYear);
+  }
+
+  // Determine if any period bar is active (for dimming inactive ones)
+  const hasActivePeriod = sorted.some(p => p.slideIdx === current);
+
+  // Draw inactive bars first, active bar last (z-order fix)
+  const sortedByActive = [...sorted].sort((a, b) =>
+    (a.slideIdx === current ? 1 : 0) - (b.slideIdx === current ? 1 : 0)
+  );
+
+  for (const p of sortedByActive) {
+    const x1 = yearToX(p.ev.startYear);
+    const x2 = yearToX(p.ev.endYear);
+    const barY = periodRowY(p.row);
+    const barW = Math.max(6, x2 - x1);
+    const color = PERIOD_COLORS[p.i % PERIOD_COLORS.length];
+    const isActive = p.slideIdx === current;
+    const opacity = isActive ? 0.95 : (hasActivePeriod ? 0.22 : 0.55);
+
+    // Vertical pin from ruler to bar
+    s += `<line x1="${x1}" y1="${RULER_Y + 14}" x2="${x1}" y2="${barY}"
+      stroke="${color}" stroke-width="1.5" opacity="${+(opacity * 0.7).toFixed(2)}" stroke-dasharray="3,3"/>`;
+
+    // Bar rect
+    s += `<rect x="${x1}" y="${barY}" width="${barW}" height="${PERIOD_H}" rx="3"
+      fill="${color}" opacity="${opacity}"
+      stroke="${isActive ? 'white' : color}" stroke-width="${isActive ? 2 : 0.5}"
+      ${isActive ? 'filter="url(#barShadow)"' : ''}/>`;
+
+    // Bar label with opaque pill background so the playhead line doesn't bleed through
+    if (barW > 44) {
+      const pillW = Math.min(barW - 8, 120);
+      const pillX = x1 + barW / 2 - pillW / 2;
+      s += `<rect x="${pillX}" y="${barY + 2}" width="${pillW}" height="${PERIOD_H - 4}" rx="2"
+        fill="rgba(0,0,0,0.50)"/>`;
+      s += `<clipPath id="pc${p.i}"><rect x="${x1+4}" y="${barY}" width="${barW-8}" height="${PERIOD_H}"/></clipPath>`;
+      s += `<text x="${x1+barW/2}" y="${barY+PERIOD_H/2+4}" text-anchor="middle"
+        fill="white" font-size="10" font-family="sans-serif" font-weight="600"
+        clip-path="url(#pc${p.i})">${esc(p.ev.title)}</text>`;
+    }
+
+    // Clickable overlay
+    s += `<rect x="${x1}" y="${barY}" width="${barW}" height="${PERIOD_H}" rx="3"
+      fill="transparent" class="tl-dot" data-index="${p.slideIdx}" data-ev="${p.i}"
+      onclick="goTo(${p.slideIdx})" onmouseenter="showTooltip(event,${p.i})"
+      onmouseleave="hideTooltip()" style="cursor:pointer"/>`;
+  }
+
+  // ── Point event dots (clustered to avoid pile-up) ──
+  const pointEvents = lastData.events
+    .map((ev, i) => ({ ev, i, slideIdx: lastData.title ? i + 1 : i, year: tlEventYears[i] }))
+    .filter(p => !p.ev.isPeriod && p.year !== null);
+
+  // Sort by x and merge events within CLUSTER_PX into one dot
+  const CLUSTER_PX = 24;
+  const withX = pointEvents.map(pt => ({ ...pt, x: yearToX(pt.year) }))
+                            .sort((a, b) => a.x - b.x);
+  const clusters = [];
+  for (const pt of withX) {
+    const last = clusters[clusters.length - 1];
+    if (last && pt.x - last.cx <= CLUSTER_PX) {
+      last.items.push(pt);
+      last.cx = last.items.reduce((sum, p) => sum + p.x, 0) / last.items.length;
+    } else {
+      clusters.push({ cx: pt.x, items: [pt] });
+    }
+  }
+  window._tlClusters = clusters;  // stored for clusterGoTo()
+
+  // Greedy label row assignment (2 rows above dots)
+  const LABEL_ROWS_Y = [54, 34];  // row 0 = closer, row 1 = higher
+  const LABEL_MIN_GAP = 54;
+  const lastXByRow = LABEL_ROWS_Y.map(() => -Infinity);
+
+  for (let ci = 0; ci < clusters.length; ci++) {
+    const cl = clusters[ci];
+    const x = cl.cx;
+    const count = cl.items.length;
+    const activePt = cl.items.find(pt => pt.slideIdx === current);
+    const primaryPt = activePt || cl.items[0];
+    const isActive = !!activePt;
+    const r = isActive ? DOT_R_A : DOT_R;
+
+    // Greedy label row
+    let labelRow = -1;
+    for (let row = 0; row < LABEL_ROWS_Y.length; row++) {
+      if (x - lastXByRow[row] >= LABEL_MIN_GAP) { labelRow = row; break; }
+    }
+    if (isActive && labelRow === -1) labelRow = 0;  // active always gets a label
+    if (labelRow >= 0) lastXByRow[labelRow] = x;
+    const labelY = labelRow >= 0 ? LABEL_ROWS_Y[labelRow] : null;
+
+    // Stem from dot to ruler
+    s += `<line x1="${x}" y1="${DOT_Y + r}" x2="${x}" y2="${RULER_Y}"
+      stroke="${isActive ? '#d4373e' : 'rgba(255,255,255,0.12)'}"
+      stroke-width="${isActive ? 1.5 : 1}"/>`;
+
+    // Glow ring
+    if (isActive) s += `<circle cx="${x}" cy="${DOT_Y}" r="${r+5}" fill="rgba(212,55,62,0.15)"/>`;
+
+    // Clickable group
+    s += `<g class="tl-dot ${isActive ? 'tl-active' : ''}"
+      onclick="clusterGoTo(${ci})" onmouseenter="showTooltip(event,${primaryPt.i})"
+      onmouseleave="hideTooltip()" style="cursor:pointer">`;
+
+    // Main dot
+    s += `<circle cx="${x}" cy="${DOT_Y}" r="${r}"
+      fill="${isActive ? '#d4373e' : '#888'}"
+      stroke="${isActive ? 'white' : '#2a2a2a'}" stroke-width="2.5"
+      filter="${isActive ? 'url(#glow)' : 'none'}"/>`;
+
+    // Count badge when multiple events are clustered
+    if (count > 1) {
+      const bx = x + r - 2, by = DOT_Y - r + 2;
+      s += `<circle cx="${bx}" cy="${by}" r="6" fill="#d4373e" stroke="white" stroke-width="1.5"/>`;
+      s += `<text x="${bx}" y="${by + 3.5}" text-anchor="middle"
+        fill="white" font-size="8" font-family="sans-serif" font-weight="bold">${count}</text>`;
+    }
+
+    // Year label — always just show the 4-digit year to avoid overflow
+    if (labelY !== null) {
+      const yearStr = ((primaryPt.ev.date || '').match(/\d{4}/) || [''])[0];
+      s += `<text x="${x}" y="${labelY}" text-anchor="middle"
+        fill="${isActive ? 'white' : '#666'}" font-size="${isActive ? 11 : 10}"
+        font-family="sans-serif" font-weight="${isActive ? 'bold' : 'normal'}">${esc(yearStr)}</text>`;
+    }
+
+    // Hit area
+    const hitTop = labelY !== null ? labelY - 4 : DOT_Y - r - 4;
+    s += `<rect x="${x-20}" y="${hitTop}" width="40" height="${DOT_Y - hitTop + r + 8}" fill="transparent"/>`;
+    s += `</g>`;
+  }
+
+  svg.innerHTML = s;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Timeline – center on current event (animated)
+// ─────────────────────────────────────────────────────────────
+function centerTimelineOnCurrent(animate) {
+  if (!lastData || !lastData.events.length) return;
+
+  const bar = document.getElementById('timeline-bar');
+  const W   = bar.clientWidth;
+  const canvas = document.getElementById('tl-canvas');
+
+  let evIdx = lastData.title ? current - 1 : current;
+  if (evIdx < 0) evIdx = 0;
+  const year = tlEventYears[evIdx];
+  if (!year) return;
+
+  const targetX = yearToX(year);
+  const newOffset = clampOffset(targetX - W / 2);
+
+  if (animate) {
+    canvas.style.transition = 'transform 0.55s cubic-bezier(0.25,0.46,0.45,0.94)';
+    tlOffset = newOffset;
+    canvas.style.transform = `translateX(${-tlOffset}px)`;
+    // Redraw dots after animation (to update active state)
+    setTimeout(() => { canvas.style.transition = ''; renderTimeline(); }, 580);
+  } else {
+    canvas.style.transition = '';
+    tlOffset = newOffset;
+    renderTimeline();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Timeline – zoom
+// ─────────────────────────────────────────────────────────────
+function zoom(factor, pivotViewX) {
+  const bar = document.getElementById('timeline-bar');
+  const W   = bar.clientWidth;
+  const pivot = pivotViewX !== undefined ? pivotViewX : W / 2;
+
+  // Year under pivot before zoom
+  const canvasPivot = pivot + tlOffset;
+  const t = (canvasPivot - PAD) / (getVW() - PAD * 2);
+
+  const newZoom = Math.max(1, Math.min(20, tlZoom * factor));
+  tlZoom = newZoom;
+
+  // Compute new offset to keep pivot year at same viewport position
+  const newVW = getVW();
+  const newCanvasPivot = PAD + t * (newVW - PAD * 2);
+  tlOffset = clampOffset(newCanvasPivot - pivot);
+
+  renderTimeline();
+  updateZoomLabel();
+}
+
+function resetZoom() {
+  tlZoom = 1;
+  tlOffset = 0;
+  renderTimeline();
+  updateZoomLabel();
+  centerTimelineOnCurrent(true);
+}
+
+function updateZoomLabel() {
+  document.getElementById('tl-zoom-label').textContent =
+    tlZoom <= 1.05 ? 'scroll to zoom · drag to pan'
+                   : `zoom ×${tlZoom.toFixed(1)} · drag to pan`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Timeline – tooltip
+// ─────────────────────────────────────────────────────────────
+function showTooltip(e, evIdx) {
+  if (!lastData || !lastData.events[evIdx]) return;
+  const ev  = lastData.events[evIdx];
+  const tip = document.getElementById('tl-tooltip');
+  const img = document.getElementById('tl-tip-img');
+
+  document.getElementById('tl-tip-date').textContent  = ev.date  || '';
+  document.getElementById('tl-tip-title').textContent = ev.title || '';
+
+  if (ev.media && !youtubeId(ev.media)) {
+    img.src = ev.media;
+    img.style.display = 'block';
+  } else {
+    img.style.display = 'none';
+  }
+
+  tip.style.display = 'block';
+  positionTooltip(e);
+}
+
+function positionTooltip(e) {
+  const tip = document.getElementById('tl-tooltip');
+  const barEl = document.getElementById('timeline-bar');
+  const barTop = barEl ? barEl.getBoundingClientRect().top : 0;
+  const TW = tip.offsetWidth || 210;
+  const TH = tip.offsetHeight || 150;
+  let x = e.clientX + 14;
+  let y = e.clientY - TH - 14;
+  // Never let tooltip go above the timeline bar
+  if (y < barTop + 8) y = barTop + 8;
+  // Don't overflow right edge
+  if (x + TW > window.innerWidth - 10) x = e.clientX - TW - 14;
+  if (x < 10) x = 10;
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tl-tooltip').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────────────────────
+// Timeline – drag to pan (mouse)
+// ─────────────────────────────────────────────────────────────
+const bar = document.getElementById('timeline-bar');
+
+// Find nearest event index (in data.events) to a canvas X position
+function nearestEventToCanvasX(canvasX) {
+  if (!lastData || !lastData.events.length) return -1;
+  let best = -1, bestDist = Infinity;
+  lastData.events.forEach((ev, i) => {
+    let d;
+    if (ev.isPeriod) {
+      const x1 = yearToX(ev.startYear), x2 = yearToX(ev.endYear);
+      d = canvasX >= x1 && canvasX <= x2 ? 0 : Math.min(Math.abs(canvasX - x1), Math.abs(canvasX - x2));
+    } else {
+      const year = tlEventYears[i];
+      if (year === null) return;
+      d = Math.abs(yearToX(year) - canvasX);
+    }
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return best;
+}
+
+bar.addEventListener('mousedown', e => {
+  if (e.target.closest('.tl-dot')) return;
+  dragActive = true;
+  dragStartX = e.clientX;
+  dragOffsetStart = tlOffset;
+  bar.style.cursor = 'grabbing';
+});
+
+window.addEventListener('mousemove', e => {
+  if (!dragActive) return;
+  const delta = e.clientX - dragStartX;
+  tlOffset = clampOffset(dragOffsetStart - delta);
+  document.getElementById('tl-canvas').style.transform = `translateX(${-tlOffset}px)`;
+});
+
+window.addEventListener('mouseup', e => {
+  if (!dragActive) return;
+  const dragged = Math.abs(e.clientX - dragStartX) > 4;
+  dragActive = false;
+  bar.style.cursor = '';
+
+  if (!dragged) {
+    // Treat as a click → snap to nearest event
+    const rect = bar.getBoundingClientRect();
+    const canvasX = (e.clientX - rect.left) + tlOffset;
+    const evIdx = nearestEventToCanvasX(canvasX);
+    if (evIdx >= 0) {
+      const slideIdx = lastData.title ? evIdx + 1 : evIdx;
+      goTo(slideIdx);
+      return; // centerTimelineOnCurrent called inside showSlide
+    }
+  }
+
+  renderTimeline();
+});
+
+// ── Scroll to zoom ──
+bar.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = bar.getBoundingClientRect();
+  const pivotX = e.clientX - rect.left;
+  zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, pivotX);
+}, { passive: false });
+
+// ── Touch – swipe to pan, pinch to zoom ──
+bar.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    touchStartX = e.touches[0].clientX;
+    touchOffsetStart = tlOffset;
+  } else if (e.touches.length === 2) {
+    pinchStartDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY);
+    pinchStartZoom = tlZoom;
+  }
+}, { passive: true });
+
+bar.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const delta = e.touches[0].clientX - touchStartX;
+    tlOffset = clampOffset(touchOffsetStart - delta);
+    document.getElementById('tl-canvas').style.transform = `translateX(${-tlOffset}px)`;
+  } else if (e.touches.length === 2) {
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY);
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2
+                 - bar.getBoundingClientRect().left;
+    const factor = dist / pinchStartDist;
+    tlZoom = Math.max(1, Math.min(20, pinchStartZoom * factor));
+    tlOffset = clampOffset(tlOffset);
+    renderTimeline();
+    updateZoomLabel();
+  }
+}, { passive: false });
+
+bar.addEventListener('touchend', () => renderTimeline());
+
+// ─────────────────────────────────────────────────────────────
+// Full rebuild (called on data change)
+// ─────────────────────────────────────────────────────────────
+function buildTimeline(data) {
+  if (!data.events.length) { document.getElementById('tl-svg').innerHTML = ''; return; }
+
+  // For periods: use midpoint as representative year; collect all endpoints for range
+  const allBoundaries = [];
+  const years = data.events.map(ev => {
+    if (ev.isPeriod) {
+      allBoundaries.push(ev.startYear, ev.endYear);
+      return Math.round((ev.startYear + ev.endYear) / 2);
+    }
+    const y = parseYear(ev.date);
+    if (y) allBoundaries.push(y);
+    return y;
+  });
+
+  const valid = allBoundaries.filter(y => y != null);
+  if (!valid.length) return;
+
+  tlEventYears = years;
+  const span = Math.max(...valid) - Math.min(...valid);
+  const pad  = Math.max(3, Math.round(span * 0.04));
+  tlYearMin = Math.min(...valid) - pad;
+  tlYearMax = Math.max(...valid) + pad;
+  tlRange   = tlYearMax - tlYearMin;
+  tlZoom    = 1;
+  tlOffset  = 0;
+
+  renderTimeline();
+  updateZoomLabel();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main update (called on editor input)
+// ─────────────────────────────────────────────────────────────
+function update() {
+  const text = document.getElementById('editor').value;
+  localStorage.setItem('frise2-content-v3', text);
+  lastData = parseMarkdown(text);
+  current  = 0;
+  buildSlides(lastData);
+  buildTimeline(lastData);
+  showSlide(0);
+  if (document.getElementById('editor-section').classList.contains('open')) {
+    buildCardTimeline(lastData);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Card timeline preview (index.html style)
+// ─────────────────────────────────────────────────────────────
+function buildCardTimeline(data) {
+  const preview = document.getElementById('card-preview');
+  if (!data.events.length) { preview.innerHTML = ''; return; }
+
+  let html = '';
+
+  if (data.title) {
+    html += `<div class="cp-title-wrap"><span class="cp-title">${esc(data.title)}</span></div>`;
+  }
+
+  html += '<div class="cp-timeline">';
+  data.events.forEach((ev, i) => {
+    const side = i % 2 === 0 ? 'cp-left' : 'cp-right';
+    const slideIdx = data.title ? i + 1 : i;
+    const isActive = slideIdx === current;
+    html += `<div class="cp-event ${side} ${isActive ? 'cp-active' : ''}" onclick="goTo(${slideIdx})">
+      ${ev.date ? `<div class="cp-date">${esc(ev.date)}</div>` : ''}
+      <div class="cp-event-title">${esc(ev.title)}</div>
+      ${ev.text.length ? `<div class="cp-event-text">${esc(ev.text[0])}</div>` : ''}
+      ${ev.media && !youtubeId(ev.media) ? `<img src="${esc(ev.media)}" alt="" loading="lazy">` : ''}
+    </div>`;
+  });
+  html += '</div>';
+
+  preview.innerHTML = html;
+
+  // Scroll active card into view
+  const active = preview.querySelector('.cp-active');
+  if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleEditor() {
+  const section = document.getElementById('editor-section');
+  const btn     = document.getElementById('btn-edit');
+  const open    = section.classList.toggle('open');
+  btn.classList.toggle('active', open);
+  if (open) {
+    buildCardTimeline(lastData);
+    setTimeout(() => renderTimeline(), 10);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Keyboard navigation
+// ─────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target === document.getElementById('editor')) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navigate(1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   navigate(-1);
+  if (e.key === '+' || e.key === '=') zoom(1.4);
+  if (e.key === '-') zoom(1/1.4);
+  if (e.key === '0') resetZoom();
+});
+
+window.addEventListener('resize', () => { renderTimeline(); });
+
+// ─────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────
+const saved = localStorage.getItem('frise2-content-v3');
+document.getElementById('editor').value = saved || DEFAULT;
+document.getElementById('editor').addEventListener('input', update);
+update();
+</script>
+
+</body>
+</html>
