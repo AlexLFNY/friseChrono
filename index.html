@@ -307,6 +307,110 @@
       .timeline-panel { padding: 20px; }
       .timeline-event { break-inside: avoid; }
     }
+
+    /* Student name input */
+    #studentName {
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      width: 180px;
+      outline: none;
+    }
+    #studentName::placeholder { color: rgba(255,255,255,0.5); }
+
+    /* Submit button */
+    #btnSubmit {
+      background: #4361ee;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    #btnSubmit:hover { background: #3451d1; }
+
+    /* Student name badge (read-only view) */
+    #studentBadge {
+      display: none;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    /* Modal */
+    #submitModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #submitModal.open { display: flex; }
+    .modal-box {
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      max-width: 520px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .modal-box h2 { font-size: 1.2rem; color: #1a1a2e; margin-bottom: 8px; }
+    .modal-box p  { font-size: 0.9rem; color: #555; margin-bottom: 16px; }
+    .modal-url {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .modal-url input {
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.8rem;
+      color: #333;
+      outline: none;
+      background: #f8f9fa;
+    }
+    .modal-url button {
+      background: #4361ee;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+    .modal-url button:hover { background: #3451d1; }
+    .modal-close {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      background: #f0f2f5;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .modal-close:hover { background: #e0e2e5; }
+    .copy-feedback {
+      font-size: 0.8rem;
+      color: #2ecc71;
+      margin-bottom: 12px;
+      min-height: 18px;
+    }
   </style>
 </head>
 <body>
@@ -314,6 +418,9 @@
 <header>
   <h1>Frise Chronologique</h1>
   <div class="header-actions">
+    <span id="studentBadge"></span>
+    <input type="text" id="studentName" placeholder="Votre nom" maxlength="60" autocomplete="off">
+    <button id="btnSubmit" onclick="submitTimeline()">Soumettre</button>
     <button onclick="toggleFullscreen()" title="Voir la frise en plein écran">Plein écran</button>
     <button onclick="window.print()" title="Imprimer la frise">Imprimer</button>
   </div>
@@ -345,6 +452,20 @@ Napoléon Bonaparte se couronne empereur."></textarea>
       <div class="arrow">&larr;</div>
       Écrivez votre frise dans l'éditeur à gauche
     </div>
+  </div>
+</div>
+
+<!-- Submit modal -->
+<div id="submitModal">
+  <div class="modal-box">
+    <h2>Frise prête à soumettre !</h2>
+    <p>Copiez ce lien et soumettez-le à votre professeur :</p>
+    <div class="modal-url">
+      <input type="text" id="shareUrl" readonly>
+      <button onclick="copyUrl()">Copier</button>
+    </div>
+    <div class="copy-feedback" id="copyFeedback"></div>
+    <button class="modal-close" onclick="closeModal()">Fermer</button>
   </div>
 </div>
 
@@ -494,18 +615,60 @@ L'Allemagne nazie capitule sans conditions. C'est la fin de la guerre en Europe.
 Le Japon capitule après les bombes atomiques sur Hiroshima et Nagasaki. La Seconde Guerre mondiale est terminée.
 ![](https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/Atomic_bombing_of_Japan.jpg/330px-Atomic_bombing_of_Japan.jpg)`;
 
-  // Load saved content
-  const saved = localStorage.getItem('frise-content');
-  if (saved) {
-    editor.value = saved;
-  } else {
-    editor.value = defaultContent;
+  // ── URL share / submit ──
+  function encodeTimeline(name, content) {
+    return btoa(unescape(encodeURIComponent(JSON.stringify({ name, content }))));
   }
 
-  // Live update
-  editor.addEventListener('input', update);
+  function decodeTimeline(hash) {
+    try { return JSON.parse(decodeURIComponent(escape(atob(hash)))); }
+    catch(e) { return null; }
+  }
 
-  // Initial render
+  function submitTimeline() {
+    const name = document.getElementById('studentName').value.trim();
+    if (!name) { alert('Veuillez entrer votre nom avant de soumettre.'); return; }
+    const encoded = encodeTimeline(name, editor.value);
+    const url = location.origin + location.pathname + '#' + encoded;
+    document.getElementById('shareUrl').value = url;
+    document.getElementById('copyFeedback').textContent = '';
+    document.getElementById('submitModal').classList.add('open');
+  }
+
+  function copyUrl() {
+    const input = document.getElementById('shareUrl');
+    input.select();
+    navigator.clipboard.writeText(input.value).then(() => {
+      document.getElementById('copyFeedback').textContent = 'Lien copié !';
+    }).catch(() => {
+      document.execCommand('copy');
+      document.getElementById('copyFeedback').textContent = 'Lien copié !';
+    });
+  }
+
+  function closeModal() {
+    document.getElementById('submitModal').classList.remove('open');
+  }
+
+  // ── Init ──
+  const hash = location.hash.slice(1);
+  const shared = hash ? decodeTimeline(hash) : null;
+
+  if (shared && shared.name && shared.content) {
+    // Read-only view for teacher
+    editor.value = shared.content;
+    document.getElementById('editorPanel').style.display = 'none';
+    document.getElementById('studentName').style.display = 'none';
+    document.getElementById('btnSubmit').style.display = 'none';
+    const badge = document.getElementById('studentBadge');
+    badge.textContent = shared.name;
+    badge.style.display = 'inline-block';
+  } else {
+    const saved = localStorage.getItem('frise-content');
+    editor.value = saved || defaultContent;
+  }
+
+  editor.addEventListener('input', update);
   update();
 </script>
 
