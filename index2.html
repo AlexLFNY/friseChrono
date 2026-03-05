@@ -551,6 +551,20 @@
     }
     #btnSubmit:hover { background: #b82d33; }
 
+    #btnEdit {
+      display: none;
+      background: none;
+      color: #888;
+      border: none;
+      padding: 0 14px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      letter-spacing: 0.5px;
+      border-right: 1px solid #333;
+      transition: color 0.2s, background 0.2s;
+    }
+    #btnEdit:hover { color: white; background: #222; }
+
     #studentBadge {
       display: none;
       color: #d4373e;
@@ -621,6 +635,34 @@
     }
     .modal-url button:hover { background: #b82d33; }
     .copy-feedback { font-size: 0.78rem; color: #2ecc71; font-family: sans-serif; min-height: 18px; margin-bottom: 12px; }
+
+    /* Password field in modal */
+    .modal-field { margin-bottom: 16px; }
+    .modal-field label { display: block; font-size: 0.78rem; color: #666; margin-bottom: 6px; font-family: sans-serif; }
+    .modal-field input[type="password"] {
+      width: 100%;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.82rem;
+      background: #111;
+      color: #ccc;
+      outline: none;
+    }
+    .modal-generate {
+      width: 100%;
+      padding: 9px;
+      background: #d4373e;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      font-family: sans-serif;
+      margin-bottom: 14px;
+    }
+    .modal-generate:hover { background: #b82d33; }
     .modal-close {
       display: block;
       width: 100%;
@@ -642,6 +684,7 @@
 <div id="editor-bar">
   <button id="btn-edit" onclick="toggleEditor()">✎ Éditer</button>
   <span id="studentBadge"></span>
+  <button id="btnEdit" onclick="editTimeline()">✎ Modifier</button>
   <input type="text" id="studentName" placeholder="Votre nom" maxlength="60" autocomplete="off">
   <button id="btnSubmit" onclick="submitTimeline()">Soumettre</button>
   <button onclick="window.print()" style="margin-left:auto;">Imprimer</button>
@@ -693,16 +736,23 @@
 <!-- Submit modal -->
 <div id="submitModal">
   <div class="modal-box">
-    <h2>Frise prête à soumettre !</h2>
-    <p>Copiez ce lien et soumettez-le à votre professeur :</p>
-    <div class="modal-warning" id="sizeWarning">
-      ⚠️ Votre frise est volumineuse. Le lien est long mais devrait fonctionner sur les navigateurs modernes. Évitez de l'envoyer par SMS.
+    <h2>Soumettre votre frise</h2>
+    <p>Ajoutez un mot de passe si vous souhaitez pouvoir modifier votre frise plus tard.</p>
+    <div class="modal-field">
+      <label>Mot de passe (optionnel)</label>
+      <input type="password" id="submitPassword" placeholder="Laisser vide si pas nécessaire" autocomplete="new-password">
     </div>
-    <div class="modal-url">
-      <input type="text" id="shareUrl" readonly>
-      <button onclick="copyUrl()">Copier</button>
+    <button class="modal-generate" onclick="generateUrl()">Générer le lien</button>
+    <div id="urlSection" style="display:none">
+      <div class="modal-warning" id="sizeWarning">
+        ⚠️ Lien trop grand.
+      </div>
+      <div class="modal-url">
+        <input type="text" id="shareUrl" readonly>
+        <button onclick="copyUrl()">Copier</button>
+      </div>
+      <div class="copy-feedback" id="copyFeedback"></div>
     </div>
-    <div class="copy-feedback" id="copyFeedback"></div>
     <button class="modal-close" onclick="closeModal()">Fermer</button>
   </div>
 </div>
@@ -1485,10 +1535,15 @@ window.addEventListener('resize', () => { renderTimeline(); });
 // ─────────────────────────────────────────────────────────────
 // URL share / submit
 // ─────────────────────────────────────────────────────────────
-const URL_WARN_THRESHOLD = 6000; // chars — warn above this length
+const URL_WARN_THRESHOLD = 6000;
 
-function encodeTimeline(name, content) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify({ name, content }))));
+async function hashPassword(pwd) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function encodeTimeline(data) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
 }
 
 function decodeTimeline(hash) {
@@ -1499,12 +1554,22 @@ function decodeTimeline(hash) {
 function submitTimeline() {
   const name = document.getElementById('studentName').value.trim();
   if (!name) { alert('Veuillez entrer votre nom avant de soumettre.'); return; }
-  const encoded = encodeTimeline(name, document.getElementById('editor').value);
-  const url = location.origin + location.pathname + '#' + encoded;
-  document.getElementById('shareUrl').value = url;
+  document.getElementById('submitPassword').value = '';
+  document.getElementById('urlSection').style.display = 'none';
   document.getElementById('copyFeedback').textContent = '';
-  document.getElementById('sizeWarning').classList.toggle('show', url.length > URL_WARN_THRESHOLD);
   document.getElementById('submitModal').classList.add('open');
+}
+
+async function generateUrl() {
+  const name = document.getElementById('studentName').value.trim();
+  const pwd  = document.getElementById('submitPassword').value;
+  const data = { name, content: document.getElementById('editor').value };
+  if (pwd) data.passwordHash = await hashPassword(pwd);
+  const url = location.origin + location.pathname + '#' + encodeTimeline(data);
+  document.getElementById('shareUrl').value = url;
+  document.getElementById('sizeWarning').classList.toggle('show', url.length > URL_WARN_THRESHOLD);
+  document.getElementById('urlSection').style.display = 'block';
+  document.getElementById('copyFeedback').textContent = '';
 }
 
 function copyUrl() {
@@ -1522,6 +1587,26 @@ function closeModal() {
   document.getElementById('submitModal').classList.remove('open');
 }
 
+async function editTimeline() {
+  if (shared.passwordHash) {
+    const pwd = prompt('Mot de passe pour modifier la frise :');
+    if (!pwd) return;
+    const hashed = await hashPassword(pwd);
+    if (hashed !== shared.passwordHash) { alert('Mot de passe incorrect.'); return; }
+  }
+  // Switch to edit mode
+  document.getElementById('editor-section').classList.add('open');
+  document.getElementById('btn-edit').style.display = 'inline-block';
+  document.getElementById('btn-edit').classList.add('active');
+  document.getElementById('studentName').style.display = 'inline-block';
+  document.getElementById('studentName').value = shared.name;
+  document.getElementById('btnSubmit').style.display = 'inline-block';
+  document.getElementById('studentBadge').style.display = 'none';
+  document.getElementById('btnEdit').style.display = 'none';
+  history.replaceState(null, '', location.pathname);
+  buildCardTimeline(lastData);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
@@ -1529,7 +1614,7 @@ const hash = location.hash.slice(1);
 const shared = hash ? decodeTimeline(hash) : null;
 
 if (shared && shared.name && shared.content) {
-  // Read-only view for teacher
+  // Read-only view
   document.getElementById('editor').value = shared.content;
   document.getElementById('btn-edit').style.display = 'none';
   document.getElementById('studentName').style.display = 'none';
@@ -1537,6 +1622,7 @@ if (shared && shared.name && shared.content) {
   const badge = document.getElementById('studentBadge');
   badge.textContent = '👤 ' + shared.name;
   badge.style.display = 'inline-block';
+  document.getElementById('btnEdit').style.display = 'inline-block';
 } else {
   const saved = localStorage.getItem('frise2-content-v3');
   document.getElementById('editor').value = saved || DEFAULT;
