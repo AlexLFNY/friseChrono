@@ -522,6 +522,118 @@
     @media print {
       .editor-panel, #editor-bar, #timeline-bar { display: none; }
     }
+
+    /* ── Student name / submit ── */
+    #studentName {
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      width: 160px;
+      outline: none;
+      margin-left: 8px;
+    }
+    #studentName::placeholder { color: rgba(255,255,255,0.35); }
+
+    #btnSubmit {
+      background: #d4373e;
+      color: white;
+      border: none;
+      padding: 0 16px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border-left: 1px solid #333;
+      transition: background 0.2s;
+    }
+    #btnSubmit:hover { background: #b82d33; }
+
+    #studentBadge {
+      display: none;
+      color: #d4373e;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0 14px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Submit modal ── */
+    #submitModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    #submitModal.open { display: flex; }
+    .modal-box {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 520px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .modal-box h2 { font-size: 1.1rem; color: white; font-family: sans-serif; margin-bottom: 8px; }
+    .modal-box p  { font-size: 0.85rem; color: #888; font-family: sans-serif; margin-bottom: 16px; }
+    .modal-warning {
+      background: rgba(212,55,62,0.15);
+      border: 1px solid rgba(212,55,62,0.4);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      color: #f08080;
+      font-family: sans-serif;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .modal-warning.show { display: block; }
+    .modal-url {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .modal-url input {
+      flex: 1;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      color: #ccc;
+      background: #111;
+      outline: none;
+    }
+    .modal-url button {
+      background: #d4373e;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    .modal-url button:hover { background: #b82d33; }
+    .copy-feedback { font-size: 0.78rem; color: #2ecc71; font-family: sans-serif; min-height: 18px; margin-bottom: 12px; }
+    .modal-close {
+      display: block;
+      width: 100%;
+      padding: 9px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #888;
+      font-family: sans-serif;
+    }
+    .modal-close:hover { background: #333; color: #ccc; }
   </style>
 </head>
 <body>
@@ -529,6 +641,9 @@
 <!-- Editor bar -->
 <div id="editor-bar">
   <button id="btn-edit" onclick="toggleEditor()">✎ Éditer</button>
+  <span id="studentBadge"></span>
+  <input type="text" id="studentName" placeholder="Votre nom" maxlength="60" autocomplete="off">
+  <button id="btnSubmit" onclick="submitTimeline()">Soumettre</button>
   <button onclick="window.print()" style="margin-left:auto;">Imprimer</button>
 </div>
 
@@ -573,6 +688,23 @@
   <img id="tl-tip-img" src="" alt="">
   <div id="tl-tip-date"></div>
   <div id="tl-tip-title"></div>
+</div>
+
+<!-- Submit modal -->
+<div id="submitModal">
+  <div class="modal-box">
+    <h2>Frise prête à soumettre !</h2>
+    <p>Copiez ce lien et soumettez-le à votre professeur :</p>
+    <div class="modal-warning" id="sizeWarning">
+      ⚠️ Votre frise est volumineuse. Le lien est long mais devrait fonctionner sur les navigateurs modernes. Évitez de l'envoyer par SMS.
+    </div>
+    <div class="modal-url">
+      <input type="text" id="shareUrl" readonly>
+      <button onclick="copyUrl()">Copier</button>
+    </div>
+    <div class="copy-feedback" id="copyFeedback"></div>
+    <button class="modal-close" onclick="closeModal()">Fermer</button>
+  </div>
 </div>
 
 <script>
@@ -1351,10 +1483,65 @@ document.addEventListener('keydown', e => {
 window.addEventListener('resize', () => { renderTimeline(); });
 
 // ─────────────────────────────────────────────────────────────
+// URL share / submit
+// ─────────────────────────────────────────────────────────────
+const URL_WARN_THRESHOLD = 6000; // chars — warn above this length
+
+function encodeTimeline(name, content) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify({ name, content }))));
+}
+
+function decodeTimeline(hash) {
+  try { return JSON.parse(decodeURIComponent(escape(atob(hash)))); }
+  catch(e) { return null; }
+}
+
+function submitTimeline() {
+  const name = document.getElementById('studentName').value.trim();
+  if (!name) { alert('Veuillez entrer votre nom avant de soumettre.'); return; }
+  const encoded = encodeTimeline(name, document.getElementById('editor').value);
+  const url = location.origin + location.pathname + '#' + encoded;
+  document.getElementById('shareUrl').value = url;
+  document.getElementById('copyFeedback').textContent = '';
+  document.getElementById('sizeWarning').classList.toggle('show', url.length > URL_WARN_THRESHOLD);
+  document.getElementById('submitModal').classList.add('open');
+}
+
+function copyUrl() {
+  const input = document.getElementById('shareUrl');
+  input.select();
+  navigator.clipboard.writeText(input.value).then(() => {
+    document.getElementById('copyFeedback').textContent = 'Lien copié !';
+  }).catch(() => {
+    document.execCommand('copy');
+    document.getElementById('copyFeedback').textContent = 'Lien copié !';
+  });
+}
+
+function closeModal() {
+  document.getElementById('submitModal').classList.remove('open');
+}
+
+// ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
-const saved = localStorage.getItem('frise2-content-v3');
-document.getElementById('editor').value = saved || DEFAULT;
+const hash = location.hash.slice(1);
+const shared = hash ? decodeTimeline(hash) : null;
+
+if (shared && shared.name && shared.content) {
+  // Read-only view for teacher
+  document.getElementById('editor').value = shared.content;
+  document.getElementById('btn-edit').style.display = 'none';
+  document.getElementById('studentName').style.display = 'none';
+  document.getElementById('btnSubmit').style.display = 'none';
+  const badge = document.getElementById('studentBadge');
+  badge.textContent = '👤 ' + shared.name;
+  badge.style.display = 'inline-block';
+} else {
+  const saved = localStorage.getItem('frise2-content-v3');
+  document.getElementById('editor').value = saved || DEFAULT;
+}
+
 document.getElementById('editor').addEventListener('input', update);
 update();
 </script>
