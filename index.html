@@ -250,6 +250,14 @@
       object-fit: cover;
     }
 
+    .event-video {
+      width: 100%;
+      border-radius: 8px;
+      margin-top: 12px;
+      aspect-ratio: 16 / 9;
+      border: none;
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -474,7 +482,8 @@
       <code># Titre</code> pour le titre de la frise<br>
       <code>## Date - Événement</code> pour chaque événement<br>
       Texte libre en dessous pour la description<br>
-      <code>![](url)</code> pour ajouter une image
+      <code>![](url)</code> pour ajouter une image<br>
+      <code>@[](url)</code> pour ajouter une vidéo (YouTube ou mp4)
     </div>
     <textarea id="editor" spellcheck="false" placeholder="# Ma Frise
 
@@ -544,9 +553,9 @@ Napoléon Bonaparte se couronne empereur."></textarea>
         if (currentEvent) events.push(currentEvent);
         const match = trimmed.replace(/^## /, '').match(/^(.+?)\s*[-–—]\s*(.+)$/);
         if (match) {
-          currentEvent = { date: match[1].trim(), title: match[2].trim(), description: [], images: [] };
+          currentEvent = { date: match[1].trim(), title: match[2].trim(), description: [], images: [], videos: [] };
         } else {
-          currentEvent = { date: '', title: trimmed.replace(/^## /, ''), description: [], images: [] };
+          currentEvent = { date: '', title: trimmed.replace(/^## /, ''), description: [], images: [], videos: [] };
         }
         continue;
       }
@@ -555,6 +564,13 @@ Napoléon Bonaparte se couronne empereur."></textarea>
       if (currentEvent && /!\[.*?\]\((.+?)\)/.test(trimmed)) {
         const imgMatch = trimmed.match(/!\[.*?\]\((.+?)\)/);
         if (imgMatch) currentEvent.images.push(imgMatch[1]);
+        continue;
+      }
+
+      // Video: @[alt](url)
+      if (currentEvent && /@\[.*?\]\((.+?)\)/.test(trimmed)) {
+        const vidMatch = trimmed.match(/@\[.*?\]\((.+?)\)/);
+        if (vidMatch) currentEvent.videos.push(vidMatch[1]);
         continue;
       }
 
@@ -567,6 +583,14 @@ Napoléon Bonaparte se couronne empereur."></textarea>
     if (currentEvent) events.push(currentEvent);
 
     return { title, events };
+  }
+
+  function toEmbedUrl(url) {
+    // YouTube watch URL
+    let m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    if (m) return 'https://www.youtube.com/embed/' + m[1];
+    // Already an embed or direct video file — return as-is
+    return url;
   }
 
   function escapeHtml(text) {
@@ -597,6 +621,13 @@ Napoléon Bonaparte se couronne empereur."></textarea>
       const side = i % 2 === 0 ? 'left' : 'right';
       const descHtml = event.description.map(p => `<p>${escapeHtml(p)}</p>`).join('');
       const imagesHtml = event.images.map(url => `<img class="event-image" src="${escapeHtml(url)}" alt="" loading="lazy">`).join('');
+      const videosHtml = (event.videos || []).map(url => {
+        const embed = toEmbedUrl(url);
+        if (/youtube\.com\/embed\//.test(embed)) {
+          return `<iframe class="event-video" src="${escapeHtml(embed)}" allowfullscreen loading="lazy"></iframe>`;
+        }
+        return `<video class="event-video" src="${escapeHtml(embed)}" controls></video>`;
+      }).join('');
 
       html += `
         <div class="timeline-event ${side}">
@@ -604,6 +635,7 @@ Napoléon Bonaparte se couronne empereur."></textarea>
           <div class="event-title">${escapeHtml(event.title)}</div>
           ${descHtml ? `<div class="event-description">${descHtml}</div>` : ''}
           ${imagesHtml}
+          ${videosHtml}
         </div>`;
     });
 
